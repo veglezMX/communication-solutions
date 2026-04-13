@@ -93,6 +93,7 @@ services:
       SETTING_MEMCACHED_LOCATION: memcached:11211
       SETTING_RABBITMQ_HOST: rabbitmq
       SETTING_REDIS_HOST: redis
+      CERTIFICATES: ${ZULIP_CERTIFICATES:-}
 
       # Required upstream settings
       SETTING_EXTERNAL_HOST: ${ZULIP_EXTERNAL_HOST}
