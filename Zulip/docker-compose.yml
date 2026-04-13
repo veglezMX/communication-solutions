@@ -1,0 +1,151 @@
+services:
+  database:
+    image: zulip/zulip-postgresql:14
+    container_name: zulip-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: zulip
+      POSTGRES_USER: zulip
+      POSTGRES_PASSWORD_FILE: /run/secrets/zulip__postgres_password
+    secrets:
+      - zulip__postgres_password
+    volumes:
+      - ./volumes/postgresql:/var/lib/postgresql/data
+    networks:
+      - zulip
+
+  memcached:
+    image: memcached:alpine
+    container_name: zulip-memcached
+    restart: unless-stopped
+    command:
+      - sh
+      - -euc
+      - |
+        echo 'mech_list: plain' > "$$SASL_CONF_PATH"
+        echo "zulip@$$HOSTNAME:$$(cat $$MEMCACHED_PASSWORD_FILE)" > "$$MEMCACHED_SASL_PWDB"
+        echo "zulip@localhost:$$(cat $$MEMCACHED_PASSWORD_FILE)" >> "$$MEMCACHED_SASL_PWDB"
+        exec memcached -S
+    environment:
+      SASL_CONF_PATH: /home/memcache/memcached.conf
+      MEMCACHED_SASL_PWDB: /home/memcache/memcached-sasl-db
+      MEMCACHED_PASSWORD_FILE: /run/secrets/zulip__memcached_password
+    secrets:
+      - zulip__memcached_password
+    networks:
+      - zulip
+
+  rabbitmq:
+    image: rabbitmq:4.2
+    container_name: zulip-rabbitmq
+    restart: unless-stopped
+    command:
+      - sh
+      - -euc
+      - |
+        export RABBITMQ_DEFAULT_PASS="$$(cat $$RABBITMQ_PASSWORD_FILE)"
+        echo "default_user = $$RABBITMQ_DEFAULT_USER" >> /etc/rabbitmq/rabbitmq.conf
+        echo "default_pass = $$RABBITMQ_DEFAULT_PASS" >> /etc/rabbitmq/rabbitmq.conf
+        exec docker-entrypoint.sh rabbitmq-server
+    environment:
+      RABBITMQ_DEFAULT_USER: zulip
+      RABBITMQ_PASSWORD_FILE: /run/secrets/zulip__rabbitmq_password
+    secrets:
+      - zulip__rabbitmq_password
+    volumes:
+      - ./volumes/rabbitmq:/var/lib/rabbitmq
+    networks:
+      - zulip
+
+  redis:
+    image: redis:alpine
+    container_name: zulip-redis
+    restart: unless-stopped
+    command:
+      - sh
+      - -euc
+      - |
+        exec /usr/local/bin/docker-entrypoint.sh --requirepass "$$(cat $$REDIS_PASSWORD_FILE)"
+    environment:
+      REDIS_PASSWORD_FILE: /run/secrets/zulip__redis_password
+    secrets:
+      - zulip__redis_password
+    volumes:
+      - ./volumes/redis:/data
+    networks:
+      - zulip
+
+  zulip:
+    image: ghcr.io/zulip/zulip-server:${ZULIP_IMAGE_TAG:-11.6-1}
+    container_name: zulip
+    restart: unless-stopped
+    depends_on:
+      - database
+      - memcached
+      - rabbitmq
+      - redis
+    ports:
+      - "80:80"
+      - "443:443"
+      - "25:25"
+    environment:
+      SETTING_REMOTE_POSTGRES_HOST: database
+      SETTING_MEMCACHED_LOCATION: memcached:11211
+      SETTING_RABBITMQ_HOST: rabbitmq
+      SETTING_REDIS_HOST: redis
+
+      # Required upstream settings
+      SETTING_EXTERNAL_HOST: ${ZULIP_EXTERNAL_HOST}
+      SETTING_ZULIP_ADMINISTRATOR: ${ZULIP_ADMINISTRATOR}
+
+      # Uncomment if the Zulip container itself should manage TLS
+      # CERTIFICATES: certbot
+
+      # Uncomment when running behind a reverse proxy
+      # LOADBALANCER_IPS: 10.0.0.0/8
+
+      # Example outbound email configuration
+      # SETTING_EMAIL_HOST: smtp.example.com
+      # SETTING_EMAIL_HOST_USER: noreply@example.com
+      # SETTING_EMAIL_PORT: "587"
+      # SETTING_EMAIL_USE_SSL: "False"
+      # SETTING_EMAIL_USE_TLS: "True"
+
+      # Example incoming email gateway
+      # SETTING_EMAIL_GATEWAY_PATTERN: "%s@emaildomain.example.com"
+
+      # Example auth backends
+      # ZULIP_AUTH_BACKENDS: "EmailAuthBackend,GoogleAuthBackend"
+    secrets:
+      - zulip__postgres_password
+      - zulip__memcached_password
+      - zulip__rabbitmq_password
+      - zulip__redis_password
+      - zulip__secret_key
+      - zulip__email_password
+    volumes:
+      - ./volumes/zulip:/data
+    ulimits:
+      nofile:
+        soft: 1000000
+        hard: 1048576
+    networks:
+      - zulip
+
+secrets:
+  zulip__postgres_password:
+    file: ./secrets/zulip_postgres_password.txt
+  zulip__memcached_password:
+    file: ./secrets/zulip_memcached_password.txt
+  zulip__rabbitmq_password:
+    file: ./secrets/zulip_rabbitmq_password.txt
+  zulip__redis_password:
+    file: ./secrets/zulip_redis_password.txt
+  zulip__secret_key:
+    file: ./secrets/zulip_secret_key.txt
+  zulip__email_password:
+    file: ./secrets/zulip_email_password.txt
+
+networks:
+  zulip:
+    driver: bridge

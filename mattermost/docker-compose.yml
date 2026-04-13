@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: mattermost-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      TZ: ${TZ}
+    volumes:
+      - ./volumes/postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - mattermost
+
+  mattermost:
+    image: mattermost/mattermost-team-edition:${MATTERMOST_IMAGE_TAG}
+    container_name: mattermost
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8065:8065"
+    environment:
+      TZ: ${TZ}
+
+      # Required DB settings
+      MM_SQLSETTINGS_DRIVERNAME: postgres
+      MM_SQLSETTINGS_DATASOURCE: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable&connect_timeout=10
+
+      # Search index path
+      MM_BLEVESETTINGS_INDEXDIR: /mattermost/bleve-indexes
+
+      # Public URL
+      MM_SERVICESETTINGS_SITEURL: ${SITE_URL}
+
+      # Optional but commonly useful
+      MM_LOGSETTINGS_ENABLECONSOLE: "true"
+      MM_PLUGINSETTINGS_ENABLE: "true"
+      MM_SERVICESETTINGS_LISTENADDRESS: ":8065"
+    volumes:
+      - ./volumes/mattermost/config:/mattermost/config
+      - ./volumes/mattermost/data:/mattermost/data
+      - ./volumes/mattermost/logs:/mattermost/logs
+      - ./volumes/mattermost/plugins:/mattermost/plugins
+      - ./volumes/mattermost/client/plugins:/mattermost/client/plugins
+      - ./volumes/mattermost/bleve-indexes:/mattermost/bleve-indexes
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - mattermost
+
+networks:
+  mattermost:
+    driver: bridge
