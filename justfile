@@ -37,6 +37,12 @@ zulip:
 	just init
 	cd Zulip && docker compose up -d
 
+zulip-setup:
+	@echo "Waiting for Zulip to be ready..."
+	@until docker exec zulip sh -c 'supervisorctl status | grep -q RUNNING' 2>/dev/null; do sleep 2; done
+	@echo ""
+	@docker exec zulip su zulip -c '/home/zulip/deployments/current/manage.py generate_realm_creation_link'
+
 huly:
 	just init
 	cd Huly && docker compose up -d

@@ -29,6 +29,16 @@ The service recipes also run `just init` first, so they are safe to use on a fre
 
 For Zulip, open the HTTPS URL directly and accept the browser warning for the self-signed certificate.
 
+### Zulip First-Time Setup
+
+A fresh Zulip server has no organization. After starting it, generate a one-time creation link:
+
+```sh
+just zulip-setup
+```
+
+This waits for the container to be healthy, then prints a URL. Open it in your browser to create your organization and admin account.
+
 ## Git Hygiene
 
 Generated `.env` files and Zulip runtime secret files are ignored by git.
