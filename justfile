@@ -3,20 +3,46 @@ set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 default: 
     just --list
 
+init:
+	@for file in Huly/.env mattermost/.env Zulip/.env; do \
+		if [[ -f "$file" ]]; then \
+			echo "Keeping $file"; \
+		else \
+			cp "$file.example" "$file"; \
+			echo "Created $file"; \
+		fi; \
+	done
+	@mkdir -p Zulip/secrets
+	@for file in \
+		zulip_postgres_password.txt \
+		zulip_memcached_password.txt \
+		zulip_rabbitmq_password.txt \
+		zulip_redis_password.txt \
+		zulip_secret_key.txt \
+		zulip_email_password.txt; do \
+		target="Zulip/secrets/$file"; \
+		if [[ -f "$target" ]]; then \
+			echo "Keeping $target"; \
+		else \
+			cp "$target.example" "$target"; \
+			echo "Created $target"; \
+		fi; \
+	done
+
 mattermost:
+	just init
 	cd mattermost && docker compose up -d
 
-rocketchat:
-	cd Rocket.Chat && docker compose up -d
-
 zulip:
+	just init
 	cd Zulip && docker compose up -d
 
 huly:
+	just init
 	cd Huly && docker compose up -d
 
 all:
+	just init
 	cd mattermost && docker compose up -d
-	cd Rocket.Chat && docker compose up -d
 	cd Zulip && docker compose up -d
 	cd Huly && docker compose up -d

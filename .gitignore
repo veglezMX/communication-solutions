@@ -1,5 +1,9 @@
+# Local runtime configuration copied from checked-in example files.
 .env
-Zulip/secrets/
+**/.env
 
+# Zulip runtime secrets are generated locally from tracked example files.
+Zulip/secrets/*
+!Zulip/secrets/*.example
 
 volumes/
